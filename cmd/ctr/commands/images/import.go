@@ -80,8 +80,14 @@ If foobar.tar contains an OCI ref named "latest" and anonymous ref "sha256:deadb
 
 	Action: func(context *cli.Context) error {
 		var (
+<<<<<<< HEAD
 			in   = context.Args().First()
 			opts []containerd.ImportOpt
+=======
+			in              = context.Args().First()
+			opts            []containerd.ImportOpt
+			platformMatcher platforms.MatchComparer
+>>>>>>> 2c98a7b09 (ctr import: strictly match platform)
 		)
 
 		prefix := context.String("base-name")
@@ -103,6 +109,15 @@ If foobar.tar contains an OCI ref named "latest" and anonymous ref "sha256:deadb
 
 		if context.Bool("compress-blobs") {
 			opts = append(opts, containerd.WithImportCompression())
+		}
+
+		if platform := context.String("platform"); platform != "" {
+			platSpec, err := platforms.Parse(platform)
+			if err != nil {
+				return err
+			}
+			platformMatcher = platforms.OnlyStrict(platSpec)
+			opts = append(opts, containerd.WithImportPlatform(platformMatcher))
 		}
 
 		opts = append(opts, containerd.WithAllPlatforms(context.Bool("all-platforms")))
@@ -135,8 +150,10 @@ If foobar.tar contains an OCI ref named "latest" and anonymous ref "sha256:deadb
 			log.G(ctx).Debugf("unpacking %d images", len(imgs))
 
 			for _, img := range imgs {
-				// TODO: Allow configuration of the platform
-				image := containerd.NewImage(client, img)
+				if platformMatcher == nil { // if platform not specified use default.
+					platformMatcher = platforms.Default()
+				}
+				image := containerd.NewImageWithPlatform(client, img, platformMatcher)
 
 				// TODO: Show unpack status
 				fmt.Printf("unpacking %s (%s)...", img.Name, img.Target.Digest)
